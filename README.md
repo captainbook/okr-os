@@ -11,7 +11,7 @@ Based on Christina Wodtke's Radical Focus (2nd edition). Every feature traces di
 ## Quick Start
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/okr-os.git ~/.claude/skills/okr-os
+git clone https://github.com/captainbook/okr-os.git ~/.claude/skills/okr-os
 cd ~/.claude/skills/okr-os
 ./setup
 ```
@@ -103,8 +103,10 @@ From Radical Focus:
 -->
 
 <p align="center">
-  <em>Your company could be here.</em>
+  <a href="https://captainbook.io"><img src="https://news.gtp.gr/wp-content/uploads/2021/09/CaptainBook_intro-e1631104560624.jpg" alt="Captainbook" height="60"></a>
 </p>
+
+> *"OKRs gave a 6-person team the focus to compete with players 50x our size."* — Captainbook
 
 **Add your logo:** If your startup uses OKR-OS to run your OKR cadence, we want to hear from you. Submit a PR adding your company to this section, or [open an issue](../../issues/new?title=Add+our+logo&template=add-logo.md) with:
 
