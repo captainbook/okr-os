@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OKR-OS — The AI-Native OKR Coach for Startup CEOs</title>
+<meta name="description" content="Open-source OKR operating system for Claude Code. Based on Radical Focus by Christina Wodtke. 12 skills that enforce the cadence that makes OKRs actually work.">
+<meta property="og:title" content="OKR-OS — The AI-Native OKR Coach for Startup CEOs">
+<meta property="og:description" content="12 Claude Code skills that coach you through OKRs. Based on Radical Focus. Open source.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://captainbook.github.io/okr-os/">
+<style>
+  :root {
+    --accent: #00adb5;
+    --accent-light: #e0f7f8;
+    --text: #1a1a1a;
+    --text-secondary: #666;
+    --bg: #ffffff;
+    --bg-alt: #f8f9fa;
+    --terminal-bg: #0a0a0a;
+    --terminal-border: #333;
+    --max-width: 960px;
+    --radius: 8px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    color: var(--text);
+    background: var(--bg);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* Layout */
+  .container { max-width: var(--max-width); margin: 0 auto; padding: 0 24px; }
+  section { padding: 80px 0; }
+  section.alt { background: var(--bg-alt); }
+
+  /* Nav */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: rgba(255,255,255,0.92); backdrop-filter: blur(12px);
+    border-bottom: 1px solid #eee;
+  }
+  nav .container {
+    display: flex; align-items: center; justify-content: space-between;
+    height: 56px;
+  }
+  nav .logo { font-weight: 700; font-size: 18px; color: var(--text); }
+  nav .logo span { color: var(--accent); }
+  nav .links { display: flex; gap: 24px; align-items: center; }
+  nav .links a { color: var(--text-secondary); font-size: 14px; }
+  nav .links a:hover { color: var(--text); text-decoration: none; }
+  .gh-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--text); color: #fff; padding: 6px 14px;
+    border-radius: var(--radius); font-size: 13px; font-weight: 500;
+  }
+  .gh-btn:hover { background: #333; text-decoration: none; }
+  .gh-btn svg { width: 16px; height: 16px; fill: #fff; }
+
+  /* Hero */
+  .hero { padding: 140px 0 80px; text-align: center; }
+  .hero h1 { font-size: 48px; font-weight: 700; line-height: 1.15; margin-bottom: 16px; letter-spacing: -1px; }
+  .hero h1 span { color: var(--accent); }
+  .hero .subtitle { font-size: 20px; color: var(--text-secondary); margin-bottom: 8px; max-width: 600px; margin-left: auto; margin-right: auto; }
+  .hero .book-ref { font-size: 15px; color: var(--text-secondary); margin-bottom: 32px; }
+  .hero .book-ref a { color: var(--accent); }
+  .install-block {
+    background: var(--terminal-bg); color: #ccc; border-radius: var(--radius);
+    padding: 16px 24px; display: inline-block; font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
+    font-size: 14px; position: relative; margin-bottom: 16px;
+  }
+  .install-block code { color: #fff; }
+  .install-block .dollar { color: var(--accent); margin-right: 8px; }
+  .hero .cta-note { font-size: 13px; color: #999; }
+
+  /* Problem */
+  .problem-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px;
+    margin-top: 40px;
+  }
+  .problem-card { text-align: center; }
+  .problem-card .icon { font-size: 32px; margin-bottom: 12px; }
+  .problem-card h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+  .problem-card p { font-size: 14px; color: var(--text-secondary); }
+
+  /* Section headers */
+  .section-label {
+    text-transform: uppercase; font-size: 12px; font-weight: 600;
+    letter-spacing: 2px; color: var(--accent); margin-bottom: 8px;
+  }
+  .section-title { font-size: 32px; font-weight: 700; margin-bottom: 16px; letter-spacing: -0.5px; }
+  .section-subtitle { font-size: 17px; color: var(--text-secondary); max-width: 600px; }
+  .centered { text-align: center; }
+  .centered .section-subtitle { margin: 0 auto; }
+
+  /* How it works */
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px; margin-top: 48px; }
+  .step { position: relative; }
+  .step-number {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: var(--accent); color: #fff; display: flex;
+    align-items: center; justify-content: center;
+    font-weight: 700; font-size: 16px; margin-bottom: 16px;
+  }
+  .step h3 { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+  .step p { font-size: 14px; color: var(--text-secondary); }
+  .step code { background: var(--accent-light); color: var(--accent); padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+
+  /* Terminal mockup */
+  .terminal-wrap { margin-top: 48px; }
+  .terminal {
+    background: var(--terminal-bg); border: 1px solid var(--terminal-border);
+    border-radius: 12px; overflow: hidden; max-width: 640px;
+    margin: 0 auto; text-align: left;
+  }
+  .terminal-bar {
+    background: #1a1a1a; padding: 10px 16px;
+    display: flex; align-items: center; gap: 6px;
+    border-bottom: 1px solid var(--terminal-border);
+  }
+  .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .dot-r { background: #ff5f57; } .dot-y { background: #febc2e; } .dot-g { background: #28c840; }
+  .terminal-title { flex: 1; text-align: center; color: #666; font-size: 12px; font-family: monospace; }
+  .terminal-body {
+    padding: 20px; font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
+    font-size: 12px; line-height: 1.6; color: #aaa;
+  }
+  .t-white { color: #fff; } .t-accent { color: var(--accent); }
+  .t-green { color: #28c840; } .t-yellow { color: #febc2e; } .t-red { color: #ff5f57; }
+  .t-dim { color: #555; } .t-bold { font-weight: bold; }
+
+  /* Features */
+  .features-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px;
+    margin-top: 40px;
+  }
+  .feature {
+    padding: 24px; border: 1px solid #eee; border-radius: var(--radius);
+    transition: border-color 0.2s;
+  }
+  .feature:hover { border-color: var(--accent); }
+  .feature h3 { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+  .feature h3 .tag { color: var(--accent); font-weight: 400; font-size: 13px; margin-left: 4px; }
+  .feature p { font-size: 14px; color: var(--text-secondary); }
+
+  /* Skills table */
+  .skills-table { width: 100%; border-collapse: collapse; margin-top: 32px; font-size: 14px; }
+  .skills-table th {
+    text-align: left; padding: 10px 12px; border-bottom: 2px solid #eee;
+    font-weight: 600; font-size: 13px; text-transform: uppercase;
+    letter-spacing: 1px; color: var(--text-secondary);
+  }
+  .skills-table td { padding: 10px 12px; border-bottom: 1px solid #f0f0f0; }
+  .skills-table code {
+    background: var(--accent-light); color: var(--accent);
+    padding: 2px 8px; border-radius: 4px; font-size: 13px; font-weight: 500;
+  }
+  .skills-table tr:hover { background: var(--bg-alt); }
+  .phase-label {
+    display: inline-block; font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 1px; padding: 2px 8px;
+    border-radius: 4px; margin-bottom: 8px;
+  }
+  .phase-1 { background: #e0f7f8; color: #00868c; }
+  .phase-2 { background: #fef3c7; color: #92400e; }
+  .phase-3 { background: #ede9fe; color: #5b21b6; }
+
+  /* Story */
+  .story-content { display: flex; gap: 48px; align-items: flex-start; margin-top: 32px; }
+  .story-text { flex: 1; }
+  .story-text p { margin-bottom: 16px; font-size: 16px; color: var(--text-secondary); line-height: 1.7; }
+  .story-text p strong { color: var(--text); }
+  .story-aside {
+    width: 240px; flex-shrink: 0; text-align: center;
+    padding: 24px; border: 1px solid #eee; border-radius: var(--radius);
+  }
+  .story-aside img { max-width: 180px; margin-bottom: 12px; }
+  .story-aside .name { font-weight: 600; font-size: 15px; }
+  .story-aside .role { font-size: 13px; color: var(--text-secondary); }
+
+  /* CTA */
+  .cta-section { text-align: center; padding: 80px 0; }
+  .cta-section .install-block { margin: 24px auto; }
+  .cta-section .section-title { margin-bottom: 8px; }
+  .cta-links { display: flex; gap: 16px; justify-content: center; margin-top: 16px; }
+  .btn-primary {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--accent); color: #fff; padding: 10px 24px;
+    border-radius: var(--radius); font-weight: 600; font-size: 15px;
+  }
+  .btn-primary:hover { background: #009299; text-decoration: none; }
+  .btn-secondary {
+    display: inline-flex; align-items: center;
+    border: 1px solid #ddd; padding: 10px 24px;
+    border-radius: var(--radius); font-weight: 500; font-size: 15px;
+    color: var(--text);
+  }
+  .btn-secondary:hover { border-color: var(--accent); text-decoration: none; }
+
+  /* Footer */
+  footer {
+    border-top: 1px solid #eee; padding: 32px 0;
+    text-align: center; font-size: 13px; color: #999;
+  }
+  footer a { color: #999; }
+  footer a:hover { color: var(--accent); }
+  footer .disclaimer { margin-top: 8px; font-size: 12px; }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .hero h1 { font-size: 32px; }
+    .hero .subtitle { font-size: 17px; }
+    .problem-grid, .steps { grid-template-columns: 1fr; }
+    .features-grid { grid-template-columns: 1fr; }
+    .story-content { flex-direction: column; }
+    .story-aside { width: 100%; }
+    nav .links a:not(.gh-btn) { display: none; }
+    .install-block { font-size: 12px; padding: 12px 16px; }
+    section { padding: 60px 0; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Nav -->
+<nav>
+  <div class="container">
+    <div class="logo">OKR-<span>OS</span></div>
+    <div class="links">
+      <a href="#features">Features</a>
+      <a href="#skills">Skills</a>
+      <a href="#story">Story</a>
+      <a href="https://github.com/captainbook/okr-os" class="gh-btn">
+        <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        GitHub
+      </a>
+    </div>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="container">
+    <h1>The AI-native <span>OKR coach</span><br>for startup CEOs</h1>
+    <p class="subtitle">12 Claude Code skills that enforce the cadence that makes OKRs actually work. Not a dashboard. Not a tracker. A coach.</p>
+    <p class="book-ref">Based on the book <a href="https://www.amazon.com/Radical-Focus-SECOND-Achieving-Objectives/dp/1955469016" target="_blank"><em>Radical Focus</em></a> by Christina Wodtke</p>
+    <div class="install-block">
+      <span class="dollar">$</span><code>git clone https://github.com/captainbook/okr-os.git ~/.claude/skills/okr-os && cd ~/.claude/skills/okr-os && ./setup</code>
+    </div>
+    <p class="cta-note">Requires Claude Code. Zero other dependencies.</p>
+  </div>
+</section>
+
+<!-- Problem -->
+<section class="alt">
+  <div class="container centered">
+    <div class="section-label">The Problem</div>
+    <h2 class="section-title">OKR tools build dashboards.<br>You need discipline.</h2>
+    <p class="section-subtitle">The #1 reason OKRs fail isn't bad goals. It's that teams set them and forget them by week 3.</p>
+    <div class="problem-grid">
+      <div class="problem-card">
+        <div class="icon">📊</div>
+        <h3>Dashboards don't coach</h3>
+        <p>A chart showing your KR is at 30% doesn't tell you why or what to do about it. You need someone asking the hard questions every Monday.</p>
+      </div>
+      <div class="problem-card">
+        <div class="icon">📋</div>
+        <h3>Tasks masquerade as KRs</h3>
+        <p>"Launch the new dashboard" is a task, not a Key Result. Most teams don't catch this until the quarter is over and no metric moved.</p>
+      </div>
+      <div class="problem-card">
+        <div class="icon">🍎</div>
+        <h3>Golden apples everywhere</h3>
+        <p>New opportunities, customer requests, competitor moves. Every week brings distractions that feel urgent but aren't aligned to your Objective.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- How it works -->
+<section>
+  <div class="container centered">
+    <div class="section-label">How It Works</div>
+    <h2 class="section-title">Three steps. Every quarter.</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-number">1</div>
+        <h3>Set up once</h3>
+        <p>Run <code>/okr-setup</code> to define your mission, strategy, and team structure. This creates the foundation every other skill reads from.</p>
+      </div>
+      <div class="step">
+        <div class="step-number">2</div>
+        <h3>Set your OKR</h3>
+        <p>Run <code>/okr-set</code> each quarter. The coach guides you through freelist, stack-rank, and selection. ONE Objective. Three Key Results. No exceptions.</p>
+      </div>
+      <div class="step">
+        <div class="step-number">3</div>
+        <h3>Run the cadence</h3>
+        <p><code>/monday</code> for commitments. <code>/friday</code> for wins. Every week, the coach holds you accountable and celebrates progress.</p>
+      </div>
+    </div>
+
+    <!-- Terminal mockup -->
+    <div class="terminal-wrap">
+      <div class="terminal">
+        <div class="terminal-bar">
+          <div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div>
+          <div class="terminal-title">/monday</div>
+        </div>
+        <div class="terminal-body">
+<span class="t-white t-bold">MONDAY COMMITMENTS — Week 7 of 13 (midpoint)</span>
+<span class="t-dim">Q2 2026 · Health Score: 72/100</span>
+
+<span class="t-accent t-bold">OBJECTIVE:</span> <span class="t-white">Own the direct-to-business tea market</span>
+
+<span class="t-dim">KR1</span> Revenue $50K/mo         <span class="t-yellow">5/10</span> ▅▅▅▅▅○○○○○  → flat
+<span class="t-dim">KR2</span> 25 restaurant partners  <span class="t-red">2/10</span> ▅▅○○○○○○○○  → DROPPING
+<span class="t-dim">KR3</span> NPS > 8                 <span class="t-green">8/10</span> ▅▅▅▅▅▅▅▅○○  → on track
+
+<span class="t-dim">LAST WEEK                        THIS WEEK</span>
+<span class="t-green">✅</span> Close Cafe Luna deal          P1: Close 3 new leads
+<span class="t-green">✅</span> Ship supplier dashboard v2    P1: Launch email campaign
+<span class="t-red">❌</span> Run NPS survey (delayed)      P1: Run NPS survey
+
+<span class="t-dim">HEALTH</span>
+<span class="t-green">●</span> Customer satisfaction  <span class="t-yellow">●</span> Code health  <span class="t-green">●</span> Morale
+
+<span class="t-yellow">⚠️  KR2 confidence dropped 3 points this week.</span>
+<span class="t-yellow">What changed? What can unblock restaurant partnerships?</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Features -->
+<section class="alt" id="features">
+  <div class="container centered">
+    <div class="section-label">Features</div>
+    <h2 class="section-title">Opinionated by design</h2>
+    <p class="section-subtitle">Every feature traces directly to Radical Focus. This is the methodology as code.</p>
+    <div class="features-grid">
+      <div class="feature">
+        <h3>ONE Objective <span class="tag">hard block</span></h3>
+        <p>The skill refuses to set more than one company Objective per quarter. No override. No config to change it. Focus is subtraction.</p>
+      </div>
+      <div class="feature">
+        <h3>Task-based KR detection</h3>
+        <p>"Launch the dashboard" gets caught and coached into "Dashboard DAU reaches 500." Outcomes, not outputs.</p>
+      </div>
+      <div class="feature">
+        <h3>Health Metrics <span class="tag">mandatory</span></h3>
+        <p>Canary metrics that protect what you've built while you stretch. Green, yellow, red. Code Red halts OKR work.</p>
+      </div>
+      <div class="feature">
+        <h3>Quarterly timeline awareness</h3>
+        <p>The coach knows it's week 7 of 13 and adjusts its tone. Early weeks are encouraging. Late weeks are urgent.</p>
+      </div>
+      <div class="feature">
+        <h3>Cross-quarter learning</h3>
+        <p>After 2+ quarters, the system detects your calibration patterns. Chronic sandbagger? It'll tell you to raise the bar.</p>
+      </div>
+      <div class="feature">
+        <h3>Golden Apple detector</h3>
+        <p>Mention a shiny new opportunity mid-quarter? The coach asks: "Does this advance your Objective, or is this Atalanta picking up golden apples?"</p>
+      </div>
+      <div class="feature">
+        <h3>Health Score <span class="tag">0-100</span></h3>
+        <p>One number combining cadence adherence, confidence trajectory, priority completion, and health metric stability.</p>
+      </div>
+      <div class="feature">
+        <h3>Shareable artifacts</h3>
+        <p>Every output is designed for copy-paste into Slack or email. Box-drawing for terminal, native formatting for each channel.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Skills -->
+<section id="skills">
+  <div class="container">
+    <div class="section-label centered">All 12 Skills</div>
+    <h2 class="section-title centered">The complete OKR toolkit</h2>
+    <table class="skills-table">
+      <thead>
+        <tr><th>Skill</th><th>What it does</th><th>When</th></tr>
+      </thead>
+      <tbody>
+        <tr><td colspan="3"><span class="phase-label phase-1">Phase 1 — Core Cadence</span></td></tr>
+        <tr><td><code>/okr-setup</code></td><td>Define mission, strategy, and prerequisites</td><td>Once, at the start</td></tr>
+        <tr><td><code>/okr-set</code></td><td>Set quarterly Objective and Key Results</td><td>Start of each quarter</td></tr>
+        <tr><td><code>/monday</code></td><td>Monday commitment meeting (Four-Square)</td><td>Every Monday</td></tr>
+        <tr><td><code>/friday</code></td><td>Friday wins celebration</td><td>Every Friday</td></tr>
+        <tr><td><code>/okr-coach</code></td><td>On-demand Socratic OKR coaching</td><td>Anytime</td></tr>
+        <tr><td colspan="3"><span class="phase-label phase-2">Phase 2 — Reporting &amp; Teams</span></td></tr>
+        <tr><td><code>/okr-status</code></td><td>Generate weekly status email</td><td>Weekly</td></tr>
+        <tr><td><code>/okr-team</code></td><td>Set team-level OKRs aligned to company</td><td>After company OKR</td></tr>
+        <tr><td><code>/okr-grade</code></td><td>End-of-quarter grading and retrospective</td><td>2 weeks before quarter ends</td></tr>
+        <tr><td><code>/okr-dashboard</code></td><td>ASCII confidence trends and health score</td><td>Anytime</td></tr>
+        <tr><td colspan="3"><span class="phase-label phase-3">Phase 3 — Intelligence &amp; Distribution</span></td></tr>
+        <tr><td><code>/okr-intro</code></td><td>Onboarding one-pager for new team members</td><td>When someone joins</td></tr>
+        <tr><td><code>/okr-sync</code></td><td>Format output for Slack, email, or Attio</td><td>After any cadence skill</td></tr>
+        <tr><td><code>/okr-upgrade</code></td><td>Update OKR-OS to latest version</td><td>When update available</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- Story -->
+<section class="alt" id="story">
+  <div class="container">
+    <div class="section-label">Why I Built This</div>
+    <h2 class="section-title">From a founder who needed it</h2>
+    <div class="story-content">
+      <div class="story-text">
+        <p>I'm <strong>Jerome Bajou</strong>, CEO and co-founder of <a href="https://captainbook.io" target="_blank">Captainbook.io</a>. We've been running OKRs since 2022, and I'm convinced Christina Wodtke's framework played a real part in getting us where we are today.</p>
+        <p>In just a few years, we put Captainbook on the traveltech map, competing against players with <strong>10x our budget and 50x our headcount</strong>. Focus was our edge, and OKRs gave us that focus.</p>
+        <p>But here's the thing about being early stage: you can't afford an OKR consultant. You can't hire a Chief of Staff to run the process. You just need to move fast and stay pointed in the right direction.</p>
+        <p><strong>OKR-OS is my answer to that.</strong> An AI coach that knows the methodology cold, holds you to the cadence, and catches the mistakes before they cost you a quarter. I built it for myself, and I'm putting it here for anyone who wants the same unfair advantage.</p>
+      </div>
+      <div class="story-aside">
+        <a href="https://captainbook.io" target="_blank">
+          <img src="https://framerusercontent.com/images/tvJZ06RMlKo9nyC9JThnV9FGWdw.png?width=262&height=64" alt="Captainbook">
+        </a>
+        <div class="name"><a href="https://www.linkedin.com/in/jeromebajou/" target="_blank">Jerome Bajou</a></div>
+        <div class="role">CEO & Co-founder, Captainbook</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+  <div class="container">
+    <div class="section-label">Get Started</div>
+    <h2 class="section-title">Install in 60 seconds</h2>
+    <p class="section-subtitle" style="margin: 0 auto 24px;">Requires Claude Code. Zero other dependencies. Works on macOS and Linux.</p>
+    <div class="install-block">
+      <span class="dollar">$</span><code>git clone https://github.com/captainbook/okr-os.git ~/.claude/skills/okr-os</code>
+    </div>
+    <br>
+    <div class="install-block">
+      <span class="dollar">$</span><code>cd ~/.claude/skills/okr-os && ./setup</code>
+    </div>
+    <div class="cta-links">
+      <a href="https://github.com/captainbook/okr-os" class="btn-primary">
+        <svg viewBox="0 0 16 16" width="18" height="18" fill="#fff"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        View on GitHub
+      </a>
+      <a href="https://www.amazon.com/Radical-Focus-SECOND-Achieving-Objectives/dp/1955469016" class="btn-secondary" target="_blank">
+        Read Radical Focus
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer>
+  <div class="container">
+    <p>OKR-OS is open source under the MIT license. Built by <a href="https://captainbook.io">Captainbook</a>.</p>
+    <p class="disclaimer">Not affiliated with or endorsed by Christina Wodtke. Inspired by her book <em>Radical Focus</em>. Go read it.</p>
+  </div>
+</footer>
+
+</body>
+</html>
