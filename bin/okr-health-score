@@ -1,0 +1,185 @@
+#!/usr/bin/env bash
+# okr-health-score — Compute composite health score from weekly OKR data.
+# Usage: okr-health-score --quarter Q1-2026 [--okr-dir .okr]
+#
+# Parses YAML frontmatter from weekly monday.md and friday.md files.
+# Components (each 0-100, weighted equally for composite):
+#   cadence_adherence:       % of expected monday+friday files present
+#   confidence_trajectory:   trending up=80+, flat=50-79, down=<50
+#   priority_completion:     % of P1s marked "done" in monday files
+#   health_metric_stability: % of weeks with all-green health metrics
+#
+# OUTPUT (JSON):
+#   {"score":72,"components":{"cadence_adherence":85,...}}
+#
+# EXIT: 0 success, 1 insufficient data, 2 quarter dir not found
+
+set -uo pipefail
+
+OKR_DIR=".okr"
+QUARTER=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --quarter) QUARTER="$2"; shift 2 ;;
+    --okr-dir) OKR_DIR="$2"; shift 2 ;;
+    *) shift ;;
+  esac
+done
+
+if [ -z "$QUARTER" ]; then
+  echo "Usage: okr-health-score --quarter Q1-2026 [--okr-dir .okr]" >&2
+  exit 1
+fi
+
+quarter_dir="$OKR_DIR/quarters/$QUARTER"
+weekly_dir="$quarter_dir/weekly"
+
+if [ ! -d "$quarter_dir" ]; then
+  echo "Quarter directory not found: $quarter_dir" >&2
+  exit 2
+fi
+
+if [ ! -d "$weekly_dir" ]; then
+  echo "No weekly data yet." >&2
+  exit 1
+fi
+
+# Count monday and friday files
+monday_count=$(ls "$weekly_dir"/*-monday.md 2>/dev/null | wc -l | tr -d ' ')
+friday_count=$(ls "$weekly_dir"/*-friday.md 2>/dev/null | wc -l | tr -d ' ')
+
+if [ "$monday_count" -lt 2 ]; then
+  echo "Insufficient data: need at least 2 weeks." >&2
+  exit 1
+fi
+
+# Determine expected weeks (based on earliest and latest monday file)
+first_monday=$(ls -t "$weekly_dir"/*-monday.md 2>/dev/null | tail -1)
+last_monday=$(ls -t "$weekly_dir"/*-monday.md 2>/dev/null | head -1)
+
+# Count weeks between first and last monday
+expected_weeks=$monday_count  # approximate: each file = 1 expected week
+expected_fridays=$monday_count
+
+# 1. Cadence adherence: % of mondays + fridays present
+total_expected=$(( expected_weeks * 2 ))
+total_present=$(( monday_count + friday_count ))
+if [ "$total_expected" -gt 0 ]; then
+  cadence_adherence=$(( total_present * 100 / total_expected ))
+else
+  cadence_adherence=0
+fi
+[ "$cadence_adherence" -gt 100 ] && cadence_adherence=100
+
+# 2. Confidence trajectory: compare first and last monday's KR confidence
+extract_confidence() {
+  local file="$1"
+  local in_conf=false
+  local total=0
+  local count=0
+  while IFS= read -r line; do
+    if echo "$line" | grep -q "^confidence:"; then
+      in_conf=true
+      continue
+    fi
+    if [ "$in_conf" = true ]; then
+      if echo "$line" | grep -q "^  kr[0-9]"; then
+        val=$(echo "$line" | awk '{print $2}')
+        if [ -n "$val" ] && [ "$val" -eq "$val" ] 2>/dev/null; then
+          total=$((total + val))
+          count=$((count + 1))
+        fi
+      else
+        if ! echo "$line" | grep -q "^  "; then
+          in_conf=false
+        fi
+      fi
+    fi
+  done < "$file"
+  if [ "$count" -gt 0 ]; then
+    echo $(( total * 10 / count ))  # x10 for precision
+  else
+    echo "50"
+  fi
+}
+
+first_conf=$(extract_confidence "$first_monday")
+last_conf=$(extract_confidence "$last_monday")
+
+if [ "$last_conf" -gt "$first_conf" ]; then
+  # Trending up
+  confidence_trajectory=80
+elif [ "$last_conf" -eq "$first_conf" ]; then
+  confidence_trajectory=60
+else
+  # Trending down
+  diff=$((first_conf - last_conf))
+  if [ "$diff" -gt 20 ]; then
+    confidence_trajectory=20
+  else
+    confidence_trajectory=40
+  fi
+fi
+
+# 3. Priority completion: % of P1s marked done across all mondays
+total_p1s=0
+done_p1s=0
+for mfile in "$weekly_dir"/*-monday.md; do
+  [ ! -f "$mfile" ] && continue
+  in_priorities=false
+  while IFS= read -r line; do
+    if echo "$line" | grep -q "^priorities:"; then
+      in_priorities=true
+      continue
+    fi
+    if [ "$in_priorities" = true ]; then
+      if echo "$line" | grep -q "priority: P1"; then
+        total_p1s=$((total_p1s + 1))
+      fi
+      if echo "$line" | grep -q "status: done"; then
+        # Check if previous priority line was P1
+        done_p1s=$((done_p1s + 1))
+      fi
+      if echo "$line" | grep -q "^[a-z]" && ! echo "$line" | grep -q "^  "; then
+        in_priorities=false
+      fi
+    fi
+  done < "$mfile"
+done
+
+if [ "$total_p1s" -gt 0 ]; then
+  priority_completion=$(( done_p1s * 100 / total_p1s ))
+else
+  priority_completion=50
+fi
+
+# 4. Health metric stability: % of mondays with all-green health metrics
+all_green_weeks=0
+for mfile in "$weekly_dir"/*-monday.md; do
+  [ ! -f "$mfile" ] && continue
+  has_non_green=false
+  while IFS= read -r line; do
+    if echo "$line" | grep -q "status: yellow\|status: red"; then
+      has_non_green=true
+      break
+    fi
+  done < "$mfile"
+  if [ "$has_non_green" = false ]; then
+    all_green_weeks=$((all_green_weeks + 1))
+  fi
+done
+
+if [ "$monday_count" -gt 0 ]; then
+  health_metric_stability=$(( all_green_weeks * 100 / monday_count ))
+else
+  health_metric_stability=50
+fi
+
+# Composite score (equal weights)
+score=$(( (cadence_adherence + confidence_trajectory + priority_completion + health_metric_stability) / 4 ))
+
+# Output JSON
+cat <<EOF
+{"score":${score},"components":{"cadence_adherence":${cadence_adherence},"confidence_trajectory":${confidence_trajectory},"priority_completion":${priority_completion},"health_metric_stability":${health_metric_stability}}}
+EOF

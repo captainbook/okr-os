@@ -1,0 +1,165 @@
+#!/usr/bin/env bash
+# okr-quarter-info — Returns current quarter, week number, days remaining, phase.
+# Usage: okr-quarter-info [--date YYYY-MM-DD] [--quarter-start MM]
+#
+# QUARTER MATH:
+#   quarter_start=01 (default, calendar year):
+#     Q1=Jan-Mar, Q2=Apr-Jun, Q3=Jul-Sep, Q4=Oct-Dec
+#   quarter_start=04 (fiscal year starting April):
+#     Q1=Apr-Jun, Q2=Jul-Sep, Q3=Oct-Dec, Q4=Jan-Mar
+#
+# OUTPUT (one line per field):
+#   QUARTER: Q2
+#   YEAR: 2026
+#   WEEK: 5
+#   WEEKS_REMAINING: 8
+#   DAYS_REMAINING: 56
+#   PHASE: mid
+#
+# EXIT: 0 on success, 1 if date is invalid
+
+set -euo pipefail
+
+DATE=""
+QUARTER_START=1
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --date)
+      DATE="$2"
+      shift 2
+      ;;
+    --quarter-start)
+      QUARTER_START="$2"
+      shift 2
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      exit 1
+      ;;
+  esac
+done
+
+# Validate quarter-start
+if ! [[ "$QUARTER_START" =~ ^[0-9]+$ ]] || [ "$QUARTER_START" -lt 1 ] || [ "$QUARTER_START" -gt 12 ]; then
+  echo "Invalid --quarter-start: must be 1-12" >&2
+  exit 1
+fi
+
+# Get target date
+if [ -n "$DATE" ]; then
+  # Validate date format
+  if ! date -j -f "%Y-%m-%d" "$DATE" "+%s" >/dev/null 2>&1; then
+    # Try GNU date
+    if ! date -d "$DATE" "+%s" >/dev/null 2>&1; then
+      echo "Invalid date: $DATE" >&2
+      exit 1
+    fi
+  fi
+  # Extract components (macOS compatible)
+  if date -j -f "%Y-%m-%d" "$DATE" "+%Y" >/dev/null 2>&1; then
+    YEAR=$(date -j -f "%Y-%m-%d" "$DATE" "+%Y")
+    MONTH=$(date -j -f "%Y-%m-%d" "$DATE" "+%m" | sed 's/^0//')
+    DAY=$(date -j -f "%Y-%m-%d" "$DATE" "+%d" | sed 's/^0//')
+  else
+    YEAR=$(date -d "$DATE" "+%Y")
+    MONTH=$(date -d "$DATE" "+%m" | sed 's/^0//')
+    DAY=$(date -d "$DATE" "+%d" | sed 's/^0//')
+  fi
+else
+  YEAR=$(date "+%Y")
+  MONTH=$(date "+%m" | sed 's/^0//')
+  DAY=$(date "+%d" | sed 's/^0//')
+fi
+
+# Adjust month relative to fiscal year start
+# If quarter_start=4 (April), then April=month 1, March=month 12
+adjusted_month=$(( (MONTH - QUARTER_START + 12) % 12 ))
+# adjusted_month: 0=first month of fiscal year, 11=last month
+
+# Calculate quarter (1-4)
+quarter=$(( adjusted_month / 3 + 1 ))
+
+# Calculate fiscal year
+# If we're before the fiscal year start month, we're in the previous fiscal year
+if [ "$MONTH" -lt "$QUARTER_START" ]; then
+  fiscal_year=$((YEAR - 1))
+else
+  fiscal_year=$YEAR
+fi
+
+# Calculate quarter start date
+# Quarter 1 starts at QUARTER_START month
+# Quarter N starts at QUARTER_START + (N-1)*3 months
+q_start_month_raw=$(( QUARTER_START + (quarter - 1) * 3 ))
+q_start_month=$(( ((q_start_month_raw - 1) % 12) + 1 ))
+if [ "$q_start_month" -lt "$QUARTER_START" ]; then
+  q_start_year=$((fiscal_year + 1))
+else
+  q_start_year=$fiscal_year
+fi
+
+# Quarter end date (3 months after start, minus 1 day)
+q_end_month_raw=$(( q_start_month + 2 ))
+q_end_month=$(( ((q_end_month_raw - 1) % 12) + 1 ))
+if [ "$q_end_month" -lt "$q_start_month" ]; then
+  q_end_year=$((q_start_year + 1))
+else
+  q_end_year=$q_start_year
+fi
+
+# Get last day of quarter end month
+q_start_fmt=$(printf "%04d-%02d-01" "$q_start_year" "$q_start_month")
+if date -j -f "%Y-%m-%d" "2000-01-01" "+%s" >/dev/null 2>&1; then
+  # macOS
+  # Days since quarter start
+  target_epoch=$(date -j -f "%Y-%m-%d" "$(printf "%04d-%02d-%02d" "$YEAR" "$MONTH" "$DAY")" "+%s" 2>/dev/null)
+  q_start_epoch=$(date -j -f "%Y-%m-%d" "$q_start_fmt" "+%s" 2>/dev/null)
+
+  # Last day of end month
+  if [ "$q_end_month" -eq 12 ]; then
+    next_month_start=$(printf "%04d-01-01" "$((q_end_year + 1))")
+  else
+    next_month_start=$(printf "%04d-%02d-01" "$q_end_year" "$((q_end_month + 1))")
+  fi
+  q_end_epoch=$(( $(date -j -f "%Y-%m-%d" "$next_month_start" "+%s" 2>/dev/null) - 86400 ))
+else
+  # GNU/Linux
+  target_epoch=$(date -d "$(printf "%04d-%02d-%02d" "$YEAR" "$MONTH" "$DAY")" "+%s")
+  q_start_epoch=$(date -d "$q_start_fmt" "+%s")
+  if [ "$q_end_month" -eq 12 ]; then
+    next_month_start=$(printf "%04d-01-01" "$((q_end_year + 1))")
+  else
+    next_month_start=$(printf "%04d-%02d-01" "$q_end_year" "$((q_end_month + 1))")
+  fi
+  q_end_epoch=$(( $(date -d "$next_month_start" "+%s") - 86400 ))
+fi
+
+days_into_quarter=$(( (target_epoch - q_start_epoch) / 86400 ))
+total_days=$(( (q_end_epoch - q_start_epoch) / 86400 + 1 ))
+days_remaining=$(( (q_end_epoch - target_epoch) / 86400 ))
+week=$(( days_into_quarter / 7 + 1 ))
+weeks_remaining=$(( (total_days - days_into_quarter) / 7 ))
+
+# Cap week at 13
+if [ "$week" -gt 13 ]; then
+  week=13
+fi
+
+# Determine phase
+if [ "$week" -le 4 ]; then
+  phase="early"
+elif [ "$week" -le 9 ]; then
+  phase="mid"
+elif [ "$week" -le 12 ]; then
+  phase="late"
+else
+  phase="final"
+fi
+
+echo "QUARTER: Q${quarter}"
+echo "YEAR: ${fiscal_year}"
+echo "WEEK: ${week}"
+echo "WEEKS_REMAINING: ${weeks_remaining}"
+echo "DAYS_REMAINING: ${days_remaining}"
+echo "PHASE: ${phase}"

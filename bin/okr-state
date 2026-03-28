@@ -1,0 +1,165 @@
+#!/usr/bin/env bash
+# okr-state — Read current OKR state from .okr/ directory.
+# Usage: okr-state [--okr-dir DIR]
+#
+# Shared utility: all skills call this instead of reimplementing file parsing.
+# Reads YAML frontmatter from objective.md and latest monday.md.
+#
+# OUTPUT:
+#   OBJECTIVE: <text>
+#   KR1: <description> | confidence=<N> | target=<N>
+#   KR2: ...
+#   KR3: ...
+#   HEALTH: <name>=<status> <name>=<status> ...
+#   CODE_RED: true|false
+#   QUARTER: Q2-2026
+#   WEEK: 7
+#   PHASE: mid
+#   LAST_MONDAY: <filepath or "none">
+#   LAST_FRIDAY: <filepath or "none">
+#
+# EXIT: 0 on success, 1 if no objective set, 2 if no .okr/ dir
+
+set -uo pipefail
+
+OKR_DIR=".okr"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --okr-dir)
+      OKR_DIR="$2"
+      shift 2
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+
+# Check .okr/ exists
+if [ ! -d "$OKR_DIR" ]; then
+  echo "No .okr/ directory found." >&2
+  exit 2
+fi
+
+# Get quarter info
+QUARTER_START=1
+if [ -f "$OKR_DIR/OKR-CONTEXT.md" ]; then
+  qs=$(grep "^quarter_start:" "$OKR_DIR/OKR-CONTEXT.md" 2>/dev/null | head -1 | awk '{print $2}')
+  if [ -n "$qs" ]; then
+    QUARTER_START="$qs"
+  fi
+fi
+
+qi=$("$SCRIPT_DIR/okr-quarter-info" --quarter-start "$QUARTER_START" 2>/dev/null || true)
+quarter=$(echo "$qi" | grep "^QUARTER:" | awk '{print $2}')
+year=$(echo "$qi" | grep "^YEAR:" | awk '{print $2}')
+week=$(echo "$qi" | grep "^WEEK:" | awk '{print $2}')
+phase=$(echo "$qi" | grep "^PHASE:" | awk '{print $2}')
+
+quarter_id="${quarter}-${year}"
+quarter_dir="$OKR_DIR/quarters/$quarter_id"
+
+# Check objective exists
+obj_file="$quarter_dir/objective.md"
+if [ ! -f "$obj_file" ]; then
+  echo "No objective set for $quarter_id." >&2
+  echo "QUARTER: $quarter_id"
+  echo "WEEK: ${week:-unknown}"
+  echo "PHASE: ${phase:-unknown}"
+  exit 1
+fi
+
+# Parse objective.md YAML frontmatter
+# Extract between first --- and second ---
+in_frontmatter=false
+frontmatter=""
+while IFS= read -r line; do
+  if [ "$line" = "---" ]; then
+    if [ "$in_frontmatter" = true ]; then
+      break
+    else
+      in_frontmatter=true
+      continue
+    fi
+  fi
+  if [ "$in_frontmatter" = true ]; then
+    frontmatter="$frontmatter
+$line"
+  fi
+done < "$obj_file"
+
+# Extract objective
+objective=$(echo "$frontmatter" | grep "^objective:" | head -1 | sed 's/^objective: *"//;s/"$//')
+
+echo "OBJECTIVE: $objective"
+
+# Extract KRs
+kr_num=0
+echo "$frontmatter" | while IFS= read -r line; do
+  if echo "$line" | grep -q "^  - id: kr"; then
+    kr_num=$((kr_num + 1))
+  fi
+  if echo "$line" | grep -q "^    description:"; then
+    desc=$(echo "$line" | sed 's/^    description: *"//;s/"$//')
+    kr_desc="$desc"
+  fi
+  if echo "$line" | grep -q "^    target:"; then
+    target=$(echo "$line" | sed 's/^    target: *//')
+    kr_target="$target"
+  fi
+  if echo "$line" | grep -q "^    confidence:"; then
+    conf=$(echo "$line" | sed 's/^    confidence: *//')
+    echo "KR${kr_num}: ${kr_desc:-unknown} | confidence=${conf} | target=${kr_target:-unknown}"
+  fi
+done
+
+# Try reading confidence from latest monday.md (overrides objective.md)
+weekly_dir="$quarter_dir/weekly"
+if [ -d "$weekly_dir" ]; then
+  last_monday=$(ls -t "$weekly_dir"/*-monday.md 2>/dev/null | head -1)
+  last_friday=$(ls -t "$weekly_dir"/*-friday.md 2>/dev/null | head -1)
+
+  if [ -n "$last_monday" ]; then
+    # Extract health metrics and confidence from latest monday
+    code_red=$(grep "^code_red:" "$last_monday" 2>/dev/null | head -1 | awk '{print $2}')
+
+    # Extract health metrics
+    health_line=""
+    in_health=false
+    while IFS= read -r line; do
+      if echo "$line" | grep -q "^health_metrics:"; then
+        in_health=true
+        continue
+      fi
+      if [ "$in_health" = true ]; then
+        if echo "$line" | grep -q "^  - name:"; then
+          hname=$(echo "$line" | sed 's/^  - name: *"//;s/"$//')
+        fi
+        if echo "$line" | grep -q "^    status:"; then
+          hstatus=$(echo "$line" | sed 's/^    status: *//')
+          health_line="${health_line}${hname}=${hstatus} "
+        fi
+        if echo "$line" | grep -q "^[a-z]" && ! echo "$line" | grep -q "^  "; then
+          in_health=false
+        fi
+      fi
+    done < "$last_monday"
+
+    echo "HEALTH: ${health_line:-none}"
+    echo "CODE_RED: ${code_red:-false}"
+  fi
+
+  echo "LAST_MONDAY: ${last_monday:-none}"
+  echo "LAST_FRIDAY: ${last_friday:-none}"
+else
+  echo "HEALTH: none"
+  echo "CODE_RED: false"
+  echo "LAST_MONDAY: none"
+  echo "LAST_FRIDAY: none"
+fi
+
+echo "QUARTER: $quarter_id"
+echo "WEEK: ${week:-unknown}"
+echo "PHASE: ${phase:-unknown}"

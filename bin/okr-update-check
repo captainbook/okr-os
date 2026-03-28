@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# okr-update-check — Check if a newer version of okr-os is available.
+# Usage: okr-update-check
+#
+# Compares local VERSION file against remote VERSION on GitHub.
+# Non-blocking: always exits 0, prints nothing if up-to-date.
+#
+# OUTPUT: Empty if up-to-date, or "UPGRADE_AVAILABLE <old> <new>"
+# EXIT: 0 always
+
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+VERSION_FILE="$SCRIPT_DIR/VERSION"
+SNOOZE_FILE="$HOME/.okr-os/.update-snooze"
+REMOTE_URL="https://raw.githubusercontent.com/jbajou/okr-os/main/VERSION"
+
+# Check snooze
+if [ -f "$SNOOZE_FILE" ]; then
+  snooze_until=$(cat "$SNOOZE_FILE" 2>/dev/null || echo "0")
+  now=$(date +%s)
+  if [ "$now" -lt "$snooze_until" ] 2>/dev/null; then
+    exit 0
+  fi
+fi
+
+# Get local version
+if [ ! -f "$VERSION_FILE" ]; then
+  exit 0
+fi
+local_version=$(cat "$VERSION_FILE" | tr -d '[:space:]')
+
+# Get remote version (timeout 3s, fail silently)
+remote_version=$(curl -sf --connect-timeout 3 --max-time 5 "$REMOTE_URL" 2>/dev/null | tr -d '[:space:]' || true)
+
+if [ -z "$remote_version" ]; then
+  exit 0
+fi
+
+# Compare versions (simple string comparison, semver)
+if [ "$local_version" != "$remote_version" ]; then
+  # Only notify if remote is newer (basic semver compare)
+  IFS='.' read -r l_major l_minor l_patch <<< "$local_version"
+  IFS='.' read -r r_major r_minor r_patch <<< "$remote_version"
+
+  is_newer=false
+  if [ "${r_major:-0}" -gt "${l_major:-0}" ] 2>/dev/null; then
+    is_newer=true
+  elif [ "${r_major:-0}" -eq "${l_major:-0}" ] && [ "${r_minor:-0}" -gt "${l_minor:-0}" ] 2>/dev/null; then
+    is_newer=true
+  elif [ "${r_major:-0}" -eq "${l_major:-0}" ] && [ "${r_minor:-0}" -eq "${l_minor:-0}" ] && [ "${r_patch:-0}" -gt "${l_patch:-0}" ] 2>/dev/null; then
+    is_newer=true
+  fi
+
+  if [ "$is_newer" = true ]; then
+    echo "UPGRADE_AVAILABLE $local_version $remote_version"
+  fi
+fi
+
+exit 0

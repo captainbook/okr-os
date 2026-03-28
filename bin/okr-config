@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# okr-config — Get/set user preferences for OKR-OS.
+# Usage: okr-config get <key>
+#        okr-config set <key> <value>
+#
+# Store: ~/.okr-os/config
+# Format: KEY=VALUE (one per line, simple shell-compatible)
+#
+# EXIT: 0 on success, 1 if key not found (get)
+
+set -euo pipefail
+
+CONFIG_DIR="${OKR_CONFIG_DIR:-$HOME/.okr-os}"
+CONFIG_FILE="$CONFIG_DIR/config"
+
+usage() {
+  echo "Usage: okr-config get <key>" >&2
+  echo "       okr-config set <key> <value>" >&2
+  exit 1
+}
+
+[ $# -lt 2 ] && usage
+
+ACTION="$1"
+KEY="$2"
+
+case "$ACTION" in
+  get)
+    if [ ! -f "$CONFIG_FILE" ]; then
+      exit 1
+    fi
+    VALUE=$(grep "^${KEY}=" "$CONFIG_FILE" 2>/dev/null | head -1 | cut -d= -f2-)
+    if [ -z "$VALUE" ]; then
+      exit 1
+    fi
+    echo "$VALUE"
+    ;;
+  set)
+    [ $# -lt 3 ] && usage
+    VALUE="$3"
+    mkdir -p "$CONFIG_DIR"
+    if [ -f "$CONFIG_FILE" ]; then
+      # Remove existing key if present
+      grep -v "^${KEY}=" "$CONFIG_FILE" > "$CONFIG_FILE.tmp" 2>/dev/null || true
+      mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
+    fi
+    echo "${KEY}=${VALUE}" >> "$CONFIG_FILE"
+    ;;
+  *)
+    usage
+    ;;
+esac

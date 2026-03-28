@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+# OKR-OS Setup Script
+# Installs okr-os skills into Claude Code's skill directory.
+#
+# Usage: ./setup [--host claude|codex] [--prefix]
+#
+# Options:
+#   --host claude    Install to ~/.claude/skills/okr-os/ (default)
+#   --host codex     Install to ~/.codex/skills/okr-os/
+#   --prefix         Namespace skills as /okr-os-<skill> instead of /<skill>
+#
+# What it does:
+#   1. Symlinks this directory into the Claude Code skills directory
+#   2. Creates ~/.okr-os/ config directory
+#   3. Makes bin/ scripts executable
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+HOST="claude"
+PREFIX=false
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --host) HOST="$2"; shift 2 ;;
+    --prefix) PREFIX=true; shift ;;
+    *) echo "Unknown option: $1" >&2; exit 1 ;;
+  esac
+done
+
+# Determine target directory
+case "$HOST" in
+  claude) SKILLS_DIR="$HOME/.claude/skills" ;;
+  codex)  SKILLS_DIR="$HOME/.codex/skills" ;;
+  *)      echo "Unknown host: $HOST (use claude or codex)" >&2; exit 1 ;;
+esac
+
+echo "OKR-OS Setup"
+echo "============"
+echo ""
+echo "Source:  $SCRIPT_DIR"
+echo "Target:  $SKILLS_DIR/okr-os"
+echo "Host:    $HOST"
+echo ""
+
+# Create skills directory if needed
+mkdir -p "$SKILLS_DIR"
+
+# Create parent symlink for bin/ and shared files
+if [ -L "$SKILLS_DIR/okr-os" ]; then
+  rm "$SKILLS_DIR/okr-os"
+elif [ -d "$SKILLS_DIR/okr-os" ]; then
+  echo "Warning: $SKILLS_DIR/okr-os is a directory, not a symlink."
+  echo "Remove it manually if you want to reinstall."
+  exit 1
+fi
+
+ln -s "$SCRIPT_DIR" "$SKILLS_DIR/okr-os"
+echo "Symlinked: $SKILLS_DIR/okr-os -> $SCRIPT_DIR"
+
+# Create per-skill symlinks (Claude Code discovers skills at ~/.claude/skills/*/SKILL.md)
+SKILLS=(okr-setup okr-set okr-team monday friday okr-status okr-grade okr-coach okr-dashboard okr-intro okr-sync okr-upgrade)
+for skill in "${SKILLS[@]}"; do
+  if [ -f "$SCRIPT_DIR/$skill/SKILL.md" ]; then
+    # Remove existing symlink if present
+    [ -L "$SKILLS_DIR/$skill" ] && rm "$SKILLS_DIR/$skill"
+    ln -sf "$SCRIPT_DIR/$skill" "$SKILLS_DIR/$skill"
+  fi
+done
+echo "Created per-skill symlinks for Claude Code discovery."
+
+# Make bin/ executable
+chmod +x "$SCRIPT_DIR/bin/"* 2>/dev/null || true
+echo "Made bin/ scripts executable."
+
+# Create config directory
+mkdir -p "$HOME/.okr-os"
+echo "Created config dir: ~/.okr-os/"
+
+# Store prefix preference
+if [ "$PREFIX" = true ]; then
+  "$SCRIPT_DIR/bin/okr-config" set skill_prefix true
+  echo "Skill prefix: enabled (e.g., /okr-os-monday)"
+else
+  "$SCRIPT_DIR/bin/okr-config" set skill_prefix false
+fi
+
+echo ""
+echo "Setup complete! Available skills:"
+echo ""
+SKILLS=(okr-setup okr-set okr-team monday friday okr-status okr-grade okr-coach okr-dashboard okr-intro okr-sync okr-upgrade)
+for skill in "${SKILLS[@]}"; do
+  if [ -f "$SCRIPT_DIR/$skill/SKILL.md" ]; then
+    echo "  /$skill"
+  else
+    echo "  /$skill (not yet built)"
+  fi
+done
+echo ""
+echo "Get started: run /okr-setup in Claude Code"
+echo ""
+echo "Version: $(cat "$SCRIPT_DIR/VERSION")"
