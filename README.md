@@ -103,7 +103,7 @@ From Radical Focus:
 -->
 
 <p align="center">
-  <a href="https://captainbook.io"><img src="https://news.gtp.gr/wp-content/uploads/2021/09/CaptainBook_intro-e1631104560624.jpg" alt="Captainbook" height="60"></a>
+  <a href="https://captainbook.io"><img src="https://framerusercontent.com/images/tvJZ06RMlKo9nyC9JThnV9FGWdw.png?width=262&height=64" alt="Captainbook" height="60"></a>
 </p>
 
 > *"OKRs gave a 6-person team the focus to compete with players 50x our size."* — Captainbook
